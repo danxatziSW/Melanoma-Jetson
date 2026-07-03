@@ -1,0 +1,153 @@
+# Melanoma Detection Pipeline
+
+A dermoscopy image pipeline for melanoma (mel) vs. non-melanoma classification, built around
+lesion detection (YOLOv8) feeding a small classifier ensemble, with an edge-deployment path
+(TensorRT on Jetson) and a live camera dashboard.
+
+Trained and evaluated across three public datasets: HAM10000, ISIC 2019, and ISIC 2020.
+
+---
+
+## Pipeline
+
+```
+image → [YOLOv8 detector] → lesion crop → [quality check] →
+        [ResNet-50, MedFusionNet, ...] → sklearn meta-learner → benign / malignant
+```
+
+An earlier version cropped lesions with a U-Net segmentation model instead of YOLO; those
+results are kept for comparison in `outputs/segmentation/`. The pipeline that's actually
+deployed skips segmentation and classifies the crop directly, which is why the training code
+calls it the "no-seg" path (`scripts/no_seg/`).
+
+## Repo layout
+
+```
+src/                   Model definitions, datasets, augmentation, training/eval utilities
+configs/               YAML configs (base + per-model hyperparameters)
+scripts/no_seg/        Training + ablation for the detect-then-classify pipeline
+scripts/deployedTensorrt/  ONNX → TensorRT conversion, Jetson latency/accuracy evaluation
+dashboard/             FastAPI backend + React frontend for the live camera demo
+outputs/               Checkpoints, exported models, metrics (mostly gitignored, see below)
+data_splits/           train/val/test CSVs (tracked in git, see Data)
+```
+
+## Setup
+
+```bash
+git clone <repository-url>
+cd <cloned-directory>
+python -m venv .venv && source .venv/bin/activate   # or .venv\Scripts\activate on Windows
+pip install -r requirements.txt
+```
+
+Optional extras depending on what you run:
+```bash
+pip install ultralytics                       # YOLOv8 detector/classifier
+pip install "fastapi[standard]" uvicorn psutil  # dashboard backend
+cd dashboard/frontend && npm install            # dashboard frontend
+```
+
+TensorRT itself isn't pip-installable generically; it ships with JetPack on Jetson devices.
+See [JETSON.md](JETSON.md) for the on-device deployment path.
+
+## Data
+
+This repo doesn't include the datasets or a data-preparation script, so `data_splits/*.csv`
+needs to be rebuilt by hand. There's no schema enforcement: the loaders just read whatever
+columns they expect out of these CSVs, so this section documents what those columns are.
+
+`image_path` and `mask_path` are relative to `paths.melanoma_data`, not absolute paths. Every
+loader calls `src.utils.io.resolve_dataset_paths` right after reading a split CSV, which joins
+these relative paths onto whatever `melanoma_data` resolves to on the machine running the
+script. That's what lets the same CSVs work unchanged on any computer: clone the repo, point
+`melanoma_data` at your own copy of the raw data, and the splits just work.
+
+### Raw dataset layout
+
+Point `configs/base.yaml`'s `paths.melanoma_data` (or the `MELANOMA_DATA_DIR` environment
+variable) at a directory containing the three datasets, laid out like:
+
+```
+<melanoma_data>/HAMM10000/merged/ISIC_0024343.jpg
+<melanoma_data>/HAM10000_segmentations_lesion_tschandl/ISIC_0024343_segmentation.png
+<melanoma_data>/ISIC2019/ISIC_2019_Training_Input/ISIC_2019_Training_Input/ISIC_0067139.jpg
+<melanoma_data>/ISIC2020/ISIC_2020_Training_JPEG/train/ISIC_6189375.jpg
+```
+
+(`ham10000`'s folder is spelled `HAMM10000`, and the ISIC2019 image folder is nested twice.
+Both are quirks of the original download layout, not typos here.)
+
+### `cls_train.csv` / `cls_val.csv` / `cls_test.csv`
+
+Consumed by `scripts/no_seg/*.py` (the first four columns) and `src/data/dataset.py`, the
+segmentation-aware classifier loader (all columns).
+
+| column | meaning | example |
+|---|---|---|
+| `image_path` | path to the image, relative to `melanoma_data` | `HAMM10000/merged/ISIC_0024343.jpg` |
+| `label_str` | class name | one of `mel`, `nv`, `bcc`, `akiec`, `bkl`, `df`, `vasc` |
+| `label_int` | integer-encoded `label_str` | `1` |
+| `dataset_source` | which dataset the row came from | `ham10000`, `isic2019`, `isic2020` |
+| `lesion_id` | source dataset's lesion identifier | `HAM_0000150` |
+| `has_mask` | whether a segmentation mask exists for this image | `True` / `False` |
+| `mask_path` | path to the mask, relative to `melanoma_data`, if `has_mask` is `True`, else empty | `HAM10000_segmentations_lesion_tschandl/ISIC_0024343_segmentation.png` |
+| `age_approx` | patient age (metadata input for MedFusionNet) | `50.0` |
+| `sex` | patient sex (metadata input for MedFusionNet) | `male` / `female` |
+| `anatom_site_general_challenge` | lesion body site (metadata input for MedFusionNet) | `back` |
+
+### `seg_train.csv` / `seg_val.csv`
+
+Used only by the segmentation baseline (`src/segmentation/`). Each row is just an image/mask pair:
+
+| column | meaning | example |
+|---|---|---|
+| `image_path` | path to the image, relative to `melanoma_data` | `HAMM10000/merged/ISIC_0024306.jpg` |
+| `mask_path` | path to the matching lesion mask, relative to `melanoma_data` | `HAM10000_segmentations_lesion_tschandl/ISIC_0024306_segmentation.png` |
+
+`paths.data_splits` and `paths.outputs` in the configs are resolved relative to the repo root,
+so they work out of the box after cloning. Only the raw dataset location and the splits
+themselves need providing.
+
+## Reproducibility
+
+- All training entry points call `src.utils.reproducibility.seed_everything(seed)` (default
+  seed `42`, set in `configs/base.yaml`), which seeds Python/NumPy/PyTorch and forces
+  deterministic cuDNN kernels.
+- Hyperparameters live in `configs/base.yaml` + `configs/models/<model>.yaml`, merged by
+  `src.utils.config.load_config`.
+- `image_path`/`mask_path` in `data_splits/*.csv` are relative to `paths.melanoma_data`, not
+  hardcoded absolute paths. `src.utils.io.resolve_dataset_paths` joins them onto whatever
+  `melanoma_data` resolves to on the machine that's running the script, which is what makes the
+  same CSVs work unchanged on any computer. If you ever regenerate splits with absolute paths
+  baked in, run `scripts/normalize_split_paths.py` once to convert them back to relative.
+
+## Training & evaluation
+
+Everything under `scripts/no_seg/` assumes `data_splits/*.csv` already exist:
+
+```bash
+# Train one model across all datasets (6 models available, see ALL_MODELS in the script)
+python scripts/no_seg/run_ablation_no_segmentation.py --models resnet50 --datasets all
+
+# Cross-dataset evaluation of trained checkpoints
+python scripts/no_seg/evaluate_noseg_models.py
+
+# 2- and 3-model ensembles
+python scripts/no_seg/nonSens/evaluate_ensemble_3models.py
+```
+
+`scripts/no_seg/sens/` holds the sensitivity-focused fine-tuning + deployment-export path
+(`train_sensitivity_all.py` → `export_for_deployment.py`) used to produce the artifacts the
+dashboard and TensorRT scripts consume.
+
+## Edge deployment & live dashboard
+
+See [JETSON.md](JETSON.md) for converting to TensorRT, running the latency benchmark, and
+starting the live camera dashboard on a Jetson device. Pre-built FP16 TensorRT engines for the
+detector + classifier ensemble are included under `outputs/` for JetPack 6 (L4T R36.4.7); other
+setups need to rebuild them (instructions in JETSON.md).
+
+## License
+
+MIT. See [LICENSE](LICENSE) for the full text.

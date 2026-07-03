@@ -1,0 +1,45 @@
+seed: 42
+num_workers: 0
+input_size: 256
+batch_size: 16
+epochs: 60
+
+# Encoder: timm-mobilenetv3_large_100 (MobileNetV3-Large as U-Net encoder)
+# Also valid: efficientnet-b0, efficientnet-b2, efficientnet-b3, mobilenet_v2
+encoder_name: timm-mobilenetv3_large_100
+encoder_weights: imagenet
+in_channels: 3
+classes: 1
+
+optimizer:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+
+scheduler:
+  name: cosine
+  T_max: 60
+  eta_min: 1.0e-6
+
+warmup_epochs: 3
+dice_weight: 0.7
+bce_weight: 0.3
+early_stopping_patience: 15
+checkpoint_monitor: val_dice
+
+augmentation:
+  enabled: true
+  horizontal_flip_p: 0.5
+  vertical_flip_p: 0.5
+  rotate90_p: 0.5
+  elastic_p: 0.15
+  grid_distort_p: 0.1
+  brightness_contrast_p: 0.4
+  hue_saturation_p: 0.3
+
+paths:
+  # see configs/base.yaml — data_splits/outputs are repo-root-relative;
+  # melanoma_data can be overridden with the MELANOMA_DATA_DIR env var.
+  data_splits: "data_splits"
+  outputs: "outputs"
+  melanoma_data: "c:\\Melanoma Data"

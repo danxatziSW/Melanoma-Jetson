@@ -1,0 +1,6 @@
+backbone: resnet50
+input_size: 224
+batch_size: 32
+loss: focal
+pretrained: true
+dropout: 0.3

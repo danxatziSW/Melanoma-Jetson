@@ -1,0 +1,4 @@
+train: outputs/detection/train.txt
+val:   outputs/detection/val.txt
+nc: 1
+names: ['lesion']

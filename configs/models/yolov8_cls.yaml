@@ -1,0 +1,6 @@
+backbone: yolov8n-cls
+input_size: 224
+batch_size: 32
+loss: focal
+pretrained: true
+dropout: 0.2

@@ -1,0 +1,14 @@
+confidence_threshold: 0.60
+uncertain_weight_factor: 0.25
+min_agreement_fraction: 0.50
+
+model_weights:
+  resnet50: 1.0
+  efficientnet_b2: 1.0
+  mobilenetv3_large: 1.0
+  convnext_tiny_se: 1.0
+  medfusionnet: 1.0
+  yolov8_cls: 1.0
+
+paths:
+  outputs: "outputs"

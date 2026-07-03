@@ -1,0 +1,6 @@
+backbone: mobilenetv3_large_100
+input_size: 224
+batch_size: 32
+loss: focal
+pretrained: true
+dropout: 0.2

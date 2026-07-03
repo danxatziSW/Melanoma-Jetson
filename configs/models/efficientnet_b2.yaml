@@ -1,0 +1,6 @@
+backbone: efficientnet_b2
+input_size: 260
+batch_size: 24
+loss: focal
+pretrained: true
+dropout: 0.3

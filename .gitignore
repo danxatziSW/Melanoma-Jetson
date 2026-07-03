@@ -1,0 +1,43 @@
+# Tooling / environments
+.claude/
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+.DS_Store
+Thumbs.db
+*.log
+
+# Frontend
+dashboard/frontend/node_modules
+dashboard/frontend/dist/
+dashboard/frontend/build/
+dashboard/frontend/.next/
+
+# Personal notes, not part of the code repo
+/methodology
+
+# Generated CSVs (training logs, etc). data_splits/*.csv is NOT matched by this
+# and stays tracked, since there's no script left to regenerate it from raw data.
+outputs/**/*.csv
+outputs/detection/train.txt
+outputs/detection/val.txt
+
+# Model weights / checkpoints / exports (large, regenerate via training scripts)
+*.pt
+*.onnx
+**/*.tflite
+outputs/detection/checkpoints/yolov8n_lesion/
+
+# Large ablation dumps (regenerate via scripts/no_seg/*.py)
+outputs/ablation_noseg/ham10000/
+outputs/ablation_noseg/isic2019/
+outputs/ablation_noseg/isic2020/
+outputs/ablation_noseg/metaJetson/
+*.xlsx
+
+# Kept: small deployment artifacts actually loaded by dashboard/api/main.py
+# (outputs/ablation_noseg/meta/deployment/tensorrt/*_fp16.engine, meta_learner.pkl,
+#  outputs/detection/checkpoints/best_fp16.engine) — none of the patterns above
+# match these paths/extensions, so they stay tracked.

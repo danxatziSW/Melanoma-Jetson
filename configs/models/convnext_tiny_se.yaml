@@ -1,0 +1,7 @@
+backbone: convnext_tiny
+input_size: 224
+batch_size: 32
+loss: focal
+pretrained: true
+dropout: 0.3
+se_reduction: 16

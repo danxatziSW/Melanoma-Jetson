@@ -1,0 +1,39 @@
+seed: 42
+num_workers: 0
+num_classes: 7
+input_size: 224
+batch_size: 32
+epochs: 50
+
+optimizer:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+
+scheduler:
+  name: cosine
+  T_max: 50
+  eta_min: 1.0e-6
+
+loss: focal
+focal_gamma: 2.0
+dropout: 0.3
+early_stopping_patience: 10
+checkpoint_monitor: val_auc
+
+paths:
+  # data_splits/outputs are resolved relative to the repo root if not absolute.
+  # melanoma_data points at the raw dataset and is machine-specific — override it
+  # with the MELANOMA_DATA_DIR environment variable rather than editing this default.
+  data_splits: "data_splits"
+  outputs: "outputs"
+  melanoma_data: "c:\\Melanoma Data"
+
+class_names:
+  - mel
+  - nv
+  - bcc
+  - akiec
+  - bkl
+  - df
+  - vasc

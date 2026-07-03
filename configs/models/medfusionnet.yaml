@@ -1,0 +1,9 @@
+backbone: efficientnet_b0
+input_size: 224
+batch_size: 24
+loss: focal
+pretrained: true
+dropout: 0.4
+metadata_dim: 8
+fusion_hidden: 256
+use_metadata: true
