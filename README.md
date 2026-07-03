@@ -4,7 +4,8 @@ A dermoscopy image pipeline for melanoma (mel) vs. non-melanoma classification, 
 lesion detection (YOLOv8) feeding a small classifier ensemble, with an edge-deployment path
 (TensorRT on Jetson) and a live camera dashboard.
 
-Trained and evaluated across three public datasets: HAM10000, ISIC 2019, and ISIC 2020.
+Trained and evaluated on HAM10000, ISIC 2019, and ISIC 2020 for classification, plus ISIC 2018
+(Task 1) for the lesion detector.
 
 ---
 
@@ -73,10 +74,12 @@ variable) at a directory containing the three datasets, laid out like:
 <melanoma_data>/HAM10000_segmentations_lesion_tschandl/ISIC_0024343_segmentation.png
 <melanoma_data>/ISIC2019/ISIC_2019_Training_Input/ISIC_2019_Training_Input/ISIC_0067139.jpg
 <melanoma_data>/ISIC2020/ISIC_2020_Training_JPEG/train/ISIC_6189375.jpg
+<melanoma_data>/isic2018-challenge-task1-data-segmentation/versions/1/ISIC2018_Task1-2_Training_Input/ISIC_0000000.jpg
 ```
 
 (`ham10000`'s folder is spelled `HAMM10000`, and the ISIC2019 image folder is nested twice.
-Both are quirks of the original download layout, not typos here.)
+Both are quirks of the original download layout, not typos here. The ISIC2018 path has a Kaggle
+`versions/1` segment because that's how it was downloaded.)
 
 ### `cls_train.csv` / `cls_val.csv` / `cls_test.csv`
 
@@ -105,6 +108,32 @@ Used only by the segmentation baseline (`src/segmentation/`). Each row is just a
 | `image_path` | path to the image, relative to `melanoma_data` | `HAMM10000/merged/ISIC_0024306.jpg` |
 | `mask_path` | path to the matching lesion mask, relative to `melanoma_data` | `HAM10000_segmentations_lesion_tschandl/ISIC_0024306_segmentation.png` |
 
+### Detection: `outputs/detection/train.txt` / `val.txt`
+
+The YOLOv8 lesion detector doesn't go through `src/utils/config.py` at all: Ultralytics reads
+its own file list directly, so it needs different handling. `train.txt`/`val.txt` are plain
+lists of image paths (one per line, relative to `melanoma_data`, same convention as the CSVs
+above). Each image has a matching YOLO-format label file sitting right next to it on disk,
+`ISIC_0024306.jpg` next to `ISIC_0024306.txt`, containing one line per box:
+
+```
+0 0.573333 0.500000 0.600000 1.000000
+```
+
+(`class x_center y_center width height`, all normalized 0-1; class `0` is the only class,
+`lesion`. Ultralytics finds these automatically next to each image since the paths don't
+contain an `images/` folder component for it to swap for `labels/`.)
+
+Since Ultralytics reads `train.txt`/`val.txt` itself, our `resolve_dataset_paths` helper (which
+only works on DataFrames) can't fix these paths at load time. Instead, run
+`scripts/prepare_detection_lists.py` once per machine: it reads the tracked, relative
+`train.txt`/`val.txt` and writes `train_resolved.txt`/`val_resolved.txt` with real absolute
+paths for whatever `melanoma_data` resolves to locally. `outputs/detection/dataset.yaml` points
+at the `_resolved` versions, and those are gitignored since they're machine-specific.
+
+`train.txt` is all HAM10000; `val.txt` is entirely from the ISIC 2018 Task 1 dataset, so the
+detector is validated on data it never saw during training.
+
 `paths.data_splits` and `paths.outputs` in the configs are resolved relative to the repo root,
 so they work out of the box after cloning. Only the raw dataset location and the splits
 themselves need providing.
@@ -121,6 +150,9 @@ themselves need providing.
   `melanoma_data` resolves to on the machine that's running the script, which is what makes the
   same CSVs work unchanged on any computer. If you ever regenerate splits with absolute paths
   baked in, run `scripts/normalize_split_paths.py` once to convert them back to relative.
+- Detection's `train.txt`/`val.txt` follow the same relative-path convention but are consumed
+  directly by Ultralytics, not our own loaders, so they need `scripts/prepare_detection_lists.py`
+  run once per machine instead (see Training the detector below).
 
 ## Training & evaluation
 
@@ -140,6 +172,26 @@ python scripts/no_seg/nonSens/evaluate_ensemble_3models.py
 `scripts/no_seg/sens/` holds the sensitivity-focused fine-tuning + deployment-export path
 (`train_sensitivity_all.py` → `export_for_deployment.py`) used to produce the artifacts the
 dashboard and TensorRT scripts consume.
+
+### Training the detector
+
+There's no custom training script for the YOLOv8 detector; it's trained directly with the
+Ultralytics CLI, using `outputs/detection/dataset.yaml` (see the Data section above for the
+label format):
+
+```bash
+# once per machine, or whenever paths.melanoma_data changes
+python scripts/prepare_detection_lists.py
+
+yolo detect train model=yolov8n.pt data=outputs/detection/dataset.yaml \
+    epochs=40 imgsz=640 batch=16 seed=0 \
+    project=outputs/detection/checkpoints name=yolov8n_lesion
+```
+
+This reproduces the run that produced the checkpoints already under
+`outputs/detection/checkpoints/`. `yolov8n.pt` is the stock pretrained COCO checkpoint
+Ultralytics fine-tunes from; it downloads automatically the first time you run this if it's
+not already sitting at the repo root.
 
 ## Edge deployment & live dashboard
 
