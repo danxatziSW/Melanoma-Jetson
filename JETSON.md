@@ -78,13 +78,14 @@ Open `http://localhost:5173` on the Jetson, or replace `localhost` with the Jets
 ## Pipeline
 
 ```
-Input image
+Input frame
+    │
+    ▼
+[Quality]     Rejects blurry frames up front (Laplacian variance < 80) — before spending
+              any GPU time on detection or classification
     │
     ▼
 [Detect]      YOLOv8n TRT FP16 — locates lesion ROI (falls back to centre crop)
-    │
-    ▼
-[Quality]     Rejects blurry frames (Laplacian variance < 80)
     │
     ▼
 [Crop]        Tight crop of the detected lesion region
@@ -94,14 +95,17 @@ Input image
               MedFusionNet TRT FP16 ┘ → sklearn meta-learner → malignancy probability
 ```
 
+(`dashboard/api/main.py`'s `infer_frame` is the reference implementation of this order; the
+latency benchmark script skips the quality gate since it isn't measuring rejection behavior.)
+
 **Engine files used:**
 
-| File | Purpose |
-|---|---|
-| `outputs/detection/checkpoints/best_fp16.engine` | YOLOv8n lesion detector |
-| `outputs/ablation_noseg/meta/deployment/tensorrt/resnet50_none_sens_fp16.engine` | ResNet-50 classifier |
-| `outputs/ablation_noseg/meta/deployment/tensorrt/medfusionnet_none_sens_fp16.engine` | MedFusionNet classifier |
-| `outputs/ablation_noseg/meta/deployment/meta_learner.pkl` | Sklearn meta-learner |
+| File | Purpose | Trained on |
+|---|---|---|
+| `outputs/detection/checkpoints/best_fp16.engine` | YOLOv8n lesion detector | ISIC 2018 Task 1 |
+| `outputs/ablation_noseg/meta/deployment/tensorrt/resnet50_none_sens_fp16.engine` | ResNet-50 classifier | HAM10000 |
+| `outputs/ablation_noseg/meta/deployment/tensorrt/medfusionnet_none_sens_fp16.engine` | MedFusionNet classifier | HAM10000 |
+| `outputs/ablation_noseg/meta/deployment/meta_learner.pkl` | Sklearn meta-learner | HAM10000 (val split) |
 
 ---
 
@@ -148,17 +152,4 @@ python3 scripts/deployedTensorrt/convert.py --precision fp16
 
 # 3. Export the YOLO detector (Ultralytics' built-in exporter)
 yolo export model=outputs/detection/checkpoints/best.pt format=engine half=True imgsz=640
-```
-
----
-
-## Citation
-
-```bibtex
-@article{TODO,
-  title   = {TODO},
-  author  = {TODO},
-  journal = {TODO},
-  year    = {2025},
-}
 ```
