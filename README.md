@@ -34,8 +34,8 @@ data_splits/           train/val/test CSVs (tracked in git, see Data)
 ## Setup
 
 ```bash
-git clone <repository-url>
-cd <cloned-directory>
+git clone https://github.com/danxatziSW/Melanoma-Jetson
+cd Melanoma-Jetson
 python -m venv .venv && source .venv/bin/activate   # or .venv\Scripts\activate on Windows
 pip install -r requirements.txt
 ```

@@ -20,8 +20,8 @@ Reproducing the on-device inference results from the paper on an **NVIDIA Jetson
 ## Setup
 
 ```bash
-git clone <repository-url>
-cd <cloned-directory>
+git clone https://github.com/danxatziSW/Melanoma-Jetson
+cd Melanoma-Jetson
 
 pip install -r requirements.txt
 pip install jetson-stats        # Jetson GPU / power monitor
