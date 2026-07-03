@@ -1,4 +1,4 @@
-"""Exports trained classifier checkpoints to ONNX.
+"""Exports trained classifier checkpoints, and the YOLOv8 detector, to ONNX.
 
 Needed because ONNX exports aren't committed to the repo (too large, easy to regenerate),
 so anyone who trains or re-trains a model has to produce their own ONNX before running
@@ -7,6 +7,7 @@ scripts/deployedTensorrt/convert.py or anything else downstream that expects one
 Usage:
     python scripts/no_seg/convert_to_onnx.py --models resnet50 --datasets ham10000 --aug none
     python scripts/no_seg/convert_to_onnx.py --models all --datasets all --aug none light none_sens
+    python scripts/no_seg/convert_to_onnx.py --detection --skip-classifiers
 """
 from __future__ import annotations
 
@@ -52,7 +53,7 @@ def convert_one(dataset: str, model_name: str, aug_mode: str, noseg_dir: Path) -
     run_id    = f"{model_name}_{aug_mode}"
     ckpt_file = noseg_dir / dataset / run_id / "checkpoints" / f"{run_id}.pt"
     if not ckpt_file.exists():
-        print(f"  [SKIP] {dataset}/{run_id} — checkpoint not found: {ckpt_file}")
+        print(f"  [SKIP] {dataset}/{run_id}: checkpoint not found: {ckpt_file}")
         return None
 
     config     = load_config(model_name)
@@ -81,11 +82,35 @@ def convert_one(dataset: str, model_name: str, aug_mode: str, noseg_dir: Path) -
     return onnx_path
 
 
+def convert_detection(det_dir: Path, imgsz: int = 640) -> Path | None:
+    """Exports outputs/detection/checkpoints/best.pt via Ultralytics' own exporter
+    (not torch.onnx.export directly: YOLO models need its export-time graph surgery,
+    e.g. folding the detection head, that raw tracing wouldn't reproduce)."""
+    ckpt = det_dir / "checkpoints" / "best.pt"
+    if not ckpt.exists():
+        print(f"  [SKIP] detection: checkpoint not found: {ckpt}")
+        return None
+
+    from ultralytics import YOLO
+    model = YOLO(str(ckpt))
+    onnx_path = Path(model.export(format="onnx", imgsz=imgsz))
+
+    size_mb = onnx_path.stat().st_size / 1e6
+    print(f"  [OK]   detection -> {onnx_path.name}  ({size_mb:.1f} MB)")
+    return onnx_path
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Export trained classifier checkpoints to ONNX.")
+    parser = argparse.ArgumentParser(
+        description="Export trained classifier checkpoints, and/or the YOLOv8 detector, to ONNX."
+    )
     parser.add_argument("--models",   nargs="+", default=["all"], choices=ALL_MODELS + ["all"])
     parser.add_argument("--datasets", nargs="+", default=["all"], choices=ALL_DATASETS + ["all"])
     parser.add_argument("--aug",      nargs="+", default=["none"], choices=ALL_AUGS + ["all"])
+    parser.add_argument("--detection", action="store_true",
+                        help="Also export outputs/detection/checkpoints/best.pt")
+    parser.add_argument("--skip-classifiers", action="store_true",
+                        help="Skip the --models/--datasets/--aug classifier export entirely")
     args = parser.parse_args()
 
     models   = ALL_MODELS   if "all" in args.models   else args.models
@@ -94,20 +119,32 @@ def main() -> None:
 
     base_cfg  = load_config()
     noseg_dir = Path(base_cfg.paths.outputs) / "ablation_noseg"
-
-    print(f"\n  Converting {len(models)} models x {len(datasets)} datasets x {len(augs)} aug modes\n")
+    det_dir   = Path(base_cfg.paths.outputs) / "detection"
 
     converted, skipped = 0, 0
-    for dataset in datasets:
-        for aug_mode in augs:
-            for model_name in models:
-                try:
-                    result = convert_one(dataset, model_name, aug_mode, noseg_dir)
-                    converted += result is not None
-                    skipped   += result is None
-                except Exception as exc:
-                    print(f"  [ERROR] {dataset}/{model_name}_{aug_mode}: {exc}")
-                    skipped += 1
+
+    if not args.skip_classifiers:
+        print(f"\n  Converting {len(models)} models x {len(datasets)} datasets x {len(augs)} aug modes\n")
+        for dataset in datasets:
+            for aug_mode in augs:
+                for model_name in models:
+                    try:
+                        result = convert_one(dataset, model_name, aug_mode, noseg_dir)
+                        converted += result is not None
+                        skipped   += result is None
+                    except Exception as exc:
+                        print(f"  [ERROR] {dataset}/{model_name}_{aug_mode}: {exc}")
+                        skipped += 1
+
+    if args.detection:
+        print("\n  Converting detector\n")
+        try:
+            result = convert_detection(det_dir)
+            converted += result is not None
+            skipped   += result is None
+        except Exception as exc:
+            print(f"  [ERROR] detection: {exc}")
+            skipped += 1
 
     print(f"\n  Done: {converted} exported, {skipped} skipped\n")
 

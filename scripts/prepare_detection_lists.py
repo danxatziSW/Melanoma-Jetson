@@ -2,7 +2,7 @@
 absolute-path files Ultralytics can train against on this machine.
 
 Ultralytics reads these list files itself, so paths in them have to be real absolute
-paths (or resolvable relative to the list file's own location) — our usual
+paths (or resolvable relative to the list file's own location): our usual
 resolve_dataset_paths() helper only works on pandas DataFrames we control. This script
 is the detection-specific equivalent: run it once per machine (or whenever
 paths.melanoma_data changes) before training the detector.

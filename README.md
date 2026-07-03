@@ -222,31 +222,45 @@ several GB), so training or re-training a model leaves you with just a `.pt` che
 ```bash
 python scripts/no_seg/convert_to_onnx.py --models resnet50 --datasets ham10000 --aug none
 python scripts/no_seg/convert_to_onnx.py --models all --datasets all --aug none light none_sens
+
+# the YOLOv8 detector too (outputs/detection/checkpoints/best.pt -> best.onnx)
+python scripts/no_seg/convert_to_onnx.py --detection --skip-classifiers
 ```
 
-Writes to `outputs/ablation_noseg/<dataset>/<model>_<aug>/onnx/<model>_<aug>.onnx`, matching
-where the checkpoint it was built from lives. Handles the metadata input (MedFusionNet) and the
-yolov8_cls ultralytics-vs-timm-fallback checkpoint shape automatically.
+Classifier checkpoints write to `outputs/ablation_noseg/<dataset>/<model>_<aug>/onnx/<model>_<aug>.onnx`,
+matching where the checkpoint they were built from lives. Handles the metadata input
+(MedFusionNet) and the yolov8_cls ultralytics-vs-timm-fallback checkpoint shape automatically.
+
+The detector goes through Ultralytics' own `.export()` instead of raw `torch.onnx.export`: YOLO
+models need export-time graph surgery (folding the detection head) that plain tracing wouldn't
+reproduce. It writes `best.onnx` next to `best.pt` in `outputs/detection/checkpoints/`. First run
+auto-installs `onnxslim` if it's missing (an Ultralytics exporter dependency, listed but commented
+out in `requirements.txt` alongside `ultralytics` itself).
 
 ### Training the detector
 
-There's no custom training script for the YOLOv8 detector; it's trained directly with the
-Ultralytics CLI, using `outputs/detection/dataset.yaml` (see the Data section above for the
-label format):
-
 ```bash
-# once per machine, or whenever paths.melanoma_data changes
-python scripts/prepare_detection_lists.py
-
-yolo detect train model=yolov8n.pt data=outputs/detection/dataset.yaml \
-    epochs=40 imgsz=640 batch=16 seed=0 \
-    project=outputs/detection/checkpoints name=yolov8n_lesion
+python scripts/no_seg/train_detection.py --epochs 40 --imgsz 640 --batch 16 --seed 0
 ```
 
-This reproduces the run that produced the checkpoints already under
-`outputs/detection/checkpoints/`. `yolov8n.pt` is the stock pretrained COCO checkpoint
-Ultralytics fine-tunes from; it downloads automatically the first time you run this if it's
-not already sitting at the repo root.
+Under the hood there's no Ultralytics Python training API in use here beyond what `yolo detect
+train` already does: `train_detection.py` is a thin wrapper around that CLI command (using
+`outputs/detection/dataset.yaml`; see the Data section above for the label format), kept as a
+script so training the detector looks like every other training step in this repo instead of a
+multi-line command you'd have to type and then fix up by hand. It also:
+
+- Runs `scripts/prepare_detection_lists.py` first, so `train_resolved.txt`/`val_resolved.txt`
+  are always current for whatever machine it's running on.
+- Resolves the `yolo` executable next to the current Python interpreter, so it works whether or
+  not the venv happens to be on `PATH`.
+- Passes `exist_ok=True` and copies `checkpoints/yolov8n_lesion/weights/best.pt` up to the flat
+  `checkpoints/best.pt` afterward, since that's where `convert_to_onnx.py`, the dashboard, and
+  JETSON.md all expect to find it (Ultralytics always nests its own output one level down,
+  regardless of `project=`).
+
+`yolov8n.pt` (`--model` to override) is the stock pretrained COCO checkpoint Ultralytics
+fine-tunes from; it downloads automatically the first time you run this if it's not already
+sitting at the repo root.
 
 ## Edge deployment & live dashboard
 
