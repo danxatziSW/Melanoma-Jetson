@@ -16,10 +16,8 @@ image → [YOLOv8 detector] → lesion crop → [quality check] →
         [ResNet-50, MedFusionNet, ...] → sklearn meta-learner → benign / malignant
 ```
 
-An earlier version cropped lesions with a U-Net segmentation model instead of YOLO; those
-results are kept for comparison in `outputs/segmentation/`. The pipeline that's actually
-deployed skips segmentation and classifies the crop directly, which is why the training code
-calls it the "no-seg" path (`scripts/no_seg/`).
+The pipeline classifies the YOLO crop directly with no intermediate segmentation step, which is
+why the training code lives under the "no-seg" path (`scripts/no_seg/`).
 
 ## Repo layout
 
@@ -42,6 +40,38 @@ python -m venv .venv && source .venv/bin/activate   # or .venv\Scripts\activate 
 pip install -r requirements.txt
 ```
 
+### GPU acceleration (CUDA)
+
+`requirements.txt` pins `torch>=2.2.0` with no index URL, so plain `pip install -r requirements.txt`
+resolves to the default PyPI wheel — which on Windows and most Linux distros is **CPU-only**, even
+if you have an NVIDIA GPU. Check what you got:
+
+```bash
+python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+```
+
+If `cuda.is_available()` is `False` and you do have an NVIDIA GPU, reinstall torch from PyTorch's
+CUDA index instead of PyPI:
+
+```bash
+pip uninstall torch torchvision
+pip install torch torchvision --index-url https://download.pytorch.org/whl/<tag>
+```
+
+Pick `<tag>` to match your GPU driver, not your GPU model — run `nvidia-smi` and read the `CUDA
+Version` in the top-right of the header; that's the *maximum* CUDA version your driver supports.
+Any index tag at or below that number will work (the CUDA runtime is backward compatible). Exact
+tags available shift as PyTorch releases new versions, so check what actually exists before
+picking one:
+
+```bash
+curl -s https://download.pytorch.org/whl/torch/ | grep -oE "torch-<version>\+cu[0-9]+-cp<major><minor>[^\"]*win_amd64\.whl" | sort -u
+# e.g. torch-2.12.1 / cp312 -> cu126, cu130, cu132 were the choices at time of writing
+```
+
+(swap `win_amd64` for `linux_x86_64` on Linux). No NVIDIA GPU, or on a Mac / CPU-only box? Skip
+this section — the default `pip install -r requirements.txt` is exactly what you want.
+
 Optional extras depending on what you run:
 ```bash
 pip install ultralytics                       # YOLOv8 detector/classifier
@@ -58,7 +88,7 @@ This repo doesn't include the datasets or a data-preparation script, so `data_sp
 needs to be rebuilt by hand. There's no schema enforcement: the loaders just read whatever
 columns they expect out of these CSVs, so this section documents what those columns are.
 
-`image_path` and `mask_path` are relative to `paths.melanoma_data`, not absolute paths. Every
+`image_path` is relative to `paths.melanoma_data`, not an absolute path. Every
 loader calls `src.utils.io.resolve_dataset_paths` right after reading a split CSV, which joins
 these relative paths onto whatever `melanoma_data` resolves to on the machine running the
 script. That's what lets the same CSVs work unchanged on any computer: clone the repo, point
@@ -71,7 +101,6 @@ variable) at a directory containing the three datasets, laid out like:
 
 ```
 <melanoma_data>/HAMM10000/merged/ISIC_0024343.jpg
-<melanoma_data>/HAM10000_segmentations_lesion_tschandl/ISIC_0024343_segmentation.png
 <melanoma_data>/ISIC2019/ISIC_2019_Training_Input/ISIC_2019_Training_Input/ISIC_0067139.jpg
 <melanoma_data>/ISIC2020/ISIC_2020_Training_JPEG/train/ISIC_6189375.jpg
 <melanoma_data>/isic2018-challenge-task1-data-segmentation/versions/1/ISIC2018_Task1-2_Training_Input/ISIC_0000000.jpg
@@ -83,8 +112,7 @@ Both are quirks of the original download layout, not typos here. The ISIC2018 pa
 
 ### `cls_train.csv` / `cls_val.csv` / `cls_test.csv`
 
-Consumed by `scripts/no_seg/*.py` (the first four columns) and `src/data/dataset.py`, the
-segmentation-aware classifier loader (all columns).
+Consumed by `scripts/no_seg/*.py` (the first four columns).
 
 | column | meaning | example |
 |---|---|---|
@@ -93,20 +121,9 @@ segmentation-aware classifier loader (all columns).
 | `label_int` | integer-encoded `label_str` | `1` |
 | `dataset_source` | which dataset the row came from | `ham10000`, `isic2019`, `isic2020` |
 | `lesion_id` | source dataset's lesion identifier | `HAM_0000150` |
-| `has_mask` | whether a segmentation mask exists for this image | `True` / `False` |
-| `mask_path` | path to the mask, relative to `melanoma_data`, if `has_mask` is `True`, else empty | `HAM10000_segmentations_lesion_tschandl/ISIC_0024343_segmentation.png` |
 | `age_approx` | patient age (metadata input for MedFusionNet) | `50.0` |
 | `sex` | patient sex (metadata input for MedFusionNet) | `male` / `female` |
 | `anatom_site_general_challenge` | lesion body site (metadata input for MedFusionNet) | `back` |
-
-### `seg_train.csv` / `seg_val.csv`
-
-Used only by the segmentation baseline (`src/segmentation/`). Each row is just an image/mask pair:
-
-| column | meaning | example |
-|---|---|---|
-| `image_path` | path to the image, relative to `melanoma_data` | `HAMM10000/merged/ISIC_0024306.jpg` |
-| `mask_path` | path to the matching lesion mask, relative to `melanoma_data` | `HAM10000_segmentations_lesion_tschandl/ISIC_0024306_segmentation.png` |
 
 ### Detection: `outputs/detection/train.txt` / `val.txt`
 
@@ -148,8 +165,8 @@ themselves need providing.
   deterministic cuDNN kernels.
 - Hyperparameters live in `configs/base.yaml` + `configs/models/<model>.yaml`, merged by
   `src.utils.config.load_config`.
-- `image_path`/`mask_path` in `data_splits/*.csv` are relative to `paths.melanoma_data`, not
-  hardcoded absolute paths. `src.utils.io.resolve_dataset_paths` joins them onto whatever
+- `image_path` in `data_splits/*.csv` is relative to `paths.melanoma_data`, not a
+  hardcoded absolute path. `src.utils.io.resolve_dataset_paths` joins it onto whatever
   `melanoma_data` resolves to on the machine that's running the script, which is what makes the
   same CSVs work unchanged on any computer. If you ever regenerate splits with absolute paths
   baked in, run `scripts/normalize_split_paths.py` once to convert them back to relative.

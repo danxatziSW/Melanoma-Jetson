@@ -59,14 +59,6 @@ def load_config(model_name: str | None = None, config_path: str | None = None) -
     return _dict_to_namespace(merged)
 
 
-def load_segmentation_config() -> types.SimpleNamespace:
-    root = Path(__file__).resolve().parents[2] / "configs"
-    base_cfg = yaml.safe_load((root / "base.yaml").read_text())
-    seg_cfg = yaml.safe_load((root / "segmentation.yaml").read_text())
-    merged = _resolve_paths(_deep_merge(base_cfg, seg_cfg), root.parent)
-    return _dict_to_namespace(merged)
-
-
 def load_ensemble_config() -> types.SimpleNamespace:
     root = Path(__file__).resolve().parents[2] / "configs"
     cfg = yaml.safe_load((root / "ensemble.yaml").read_text())

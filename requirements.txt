@@ -6,9 +6,6 @@ torch>=2.2.0
 torchvision>=0.17.0
 timm==1.0.26
 
-# Segmentation
-segmentation-models-pytorch==0.5.0
-
 # Data & augmentation
 albumentations==2.0.8
 opencv-python==4.13.0.92

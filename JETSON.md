@@ -135,19 +135,18 @@ sudo jetson_clocks    # lock CPU/GPU clocks
 
 To keep the repo small, only the compiled `.engine` files (JetPack 6 / L4T R36.4.7) are
 checked in — not the PyTorch checkpoints or ONNX exports they were built from. If your
-JetPack version differs, you'll need to reproduce those first:
+JetPack version differs, you'll need to reproduce those first. This assumes the classifiers are
+already fine-tuned (`*_none_sens.pt` checkpoints) — see the "Meta-learner" section of
+[README.md](README.md) if not:
 
 ```bash
-# 1. Fine-tune the two classifiers (produces the *_none_sens.pt checkpoints)
-python3 scripts/no_seg/sens/train_sensitivity_all.py
-
-# 2. Export to ONNX and fit the meta-learner
+# 1. Export to ONNX and fit the meta-learner
 python3 scripts/no_seg/sens/export_for_deployment.py
 
-# 3. Convert the classifiers to TensorRT
+# 2. Convert the classifiers to TensorRT
 python3 scripts/deployedTensorrt/convert.py --precision fp16
 
-# 4. Export the YOLO detector (Ultralytics' built-in exporter)
+# 3. Export the YOLO detector (Ultralytics' built-in exporter)
 yolo export model=outputs/detection/checkpoints/best.pt format=engine half=True imgsz=640
 ```
 
