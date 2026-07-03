@@ -1,4 +1,4 @@
-train: outputs/detection/train_resolved.txt
-val:   outputs/detection/val_resolved.txt
+train: train_resolved.txt
+val:   val_resolved.txt
 nc: 1
 names: ['lesion']

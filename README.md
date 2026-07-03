@@ -129,7 +129,10 @@ only works on DataFrames) can't fix these paths at load time. Instead, run
 `scripts/prepare_detection_lists.py` once per machine: it reads the tracked, relative
 `train.txt`/`val.txt` and writes `train_resolved.txt`/`val_resolved.txt` with real absolute
 paths for whatever `melanoma_data` resolves to locally. `outputs/detection/dataset.yaml` points
-at the `_resolved` versions, and those are gitignored since they're machine-specific.
+at the `_resolved` versions, and those are gitignored since they're machine-specific. Ultralytics
+resolves `train:`/`val:` in the data yaml relative to the yaml file's own directory, so
+`dataset.yaml` references them by filename only (`train_resolved.txt`, not
+`outputs/detection/train_resolved.txt`) since it already lives in `outputs/detection/`.
 
 `train.txt` is all HAM10000; `val.txt` is entirely from the ISIC 2018 Task 1 dataset, so the
 detector is validated on data it never saw during training.
