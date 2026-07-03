@@ -159,7 +159,10 @@ themselves need providing.
 
 ## Training & evaluation
 
-Everything under `scripts/no_seg/` assumes `data_splits/*.csv` already exist:
+Everything under `scripts/no_seg/` assumes `data_splits/*.csv` already exist. None of these
+scripts take CLI flags for picking models/datasets beyond what's shown below; where a script
+needs to know which specific checkpoints to use (a model pair, a triplet), that's a constant
+near the top of the file (`MODEL1`, `DATASET1`, `AUG_MODE`, ...), not an argument.
 
 ```bash
 # Train one model across all datasets (6 models available, see ALL_MODELS in the script)
@@ -167,14 +170,63 @@ python scripts/no_seg/run_ablation_no_segmentation.py --models resnet50 --datase
 
 # Cross-dataset evaluation of trained checkpoints
 python scripts/no_seg/evaluate_noseg_models.py
-
-# 2- and 3-model ensembles
-python scripts/no_seg/nonSens/evaluate_ensemble_3models.py
 ```
 
-`scripts/no_seg/sens/` holds the sensitivity-focused fine-tuning + deployment-export path
-(`train_sensitivity_all.py` → `export_for_deployment.py`) used to produce the artifacts the
-dashboard and TensorRT scripts consume.
+### Ensembles
+
+`scripts/no_seg/nonSens/` searches ensembles of the base ("none" aug) checkpoints;
+`scripts/no_seg/sens/` does the same for sensitivity fine-tuned ("none_sens") checkpoints. Both
+follow the same pattern: majority vote vs. mean-probability, 2-model vs. 3-model. Pick the file
+that matches what you want, e.g.:
+
+```bash
+python scripts/no_seg/nonSens/evaluate_ensemble_3models.py       # majority vote, all triplets
+python scripts/no_seg/nonSens/evaluate_ensemble_3models_mean.py  # mean probability, all triplets
+python scripts/no_seg/sens/evaluate_3models_majority_sens.py     # same, on sens-tuned checkpoints
+```
+
+### Meta-learner (the part that gets deployed)
+
+Rather than a fixed vote/mean rule, the deployed ensemble stacks two models' probabilities
+through a small `StandardScaler` + `LogisticRegression`. Getting from "trained checkpoints" to
+"deployable meta-learner" is a few steps:
+
+```bash
+# 1. Fine-tune for sensitivity (produces the *_none_sens.pt checkpoints)
+python scripts/no_seg/sens/train_sensitivity_all.py
+
+# 2. Search all model pairs / triplets, fit a meta-learner per combo, rank by avg F1
+python scripts/no_seg/sens/evaluate_meta_2models.py     # pairs
+python scripts/no_seg/sens/evaluate_meta_stacking.py    # triplets (set FOCUS_TRIPLETS to narrow)
+
+# 3. Validate the specific pair you've decided to deploy (edit MODEL1/DATASET1/MODEL2/DATASET2
+#    at the top of both this script and export_for_deployment.py to match)
+python scripts/no_seg/sens/evaluate_deployment_pair.py
+
+# 4. Export that pair to ONNX and pickle the fitted meta-learner
+python scripts/no_seg/sens/export_for_deployment.py
+```
+
+Step 4 is what produces `outputs/ablation_noseg/meta/deployment/meta_learner.pkl` and the two
+`*_none_sens.onnx` files that `scripts/deployedTensorrt/convert.py` turns into the TensorRT
+engines the dashboard and JETSON.md both consume.
+
+### Converting any checkpoint to ONNX
+
+ONNX exports aren't committed to the repo (regenerate-able, and the ablation ones alone run to
+several GB), so training or re-training a model leaves you with just a `.pt` checkpoint.
+`export_for_deployment.py` above only exports the two models it's hardcoded to deploy;
+`scripts/no_seg/convert_to_onnx.py` is the general version, for any checkpoint produced by
+`run_ablation_no_segmentation.py` or `train_sensitivity_all.py`:
+
+```bash
+python scripts/no_seg/convert_to_onnx.py --models resnet50 --datasets ham10000 --aug none
+python scripts/no_seg/convert_to_onnx.py --models all --datasets all --aug none light none_sens
+```
+
+Writes to `outputs/ablation_noseg/<dataset>/<model>_<aug>/onnx/<model>_<aug>.onnx`, matching
+where the checkpoint it was built from lives. Handles the metadata input (MedFusionNet) and the
+yolov8_cls ultralytics-vs-timm-fallback checkpoint shape automatically.
 
 ### Training the detector
 

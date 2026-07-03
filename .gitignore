@@ -42,5 +42,5 @@ outputs/ablation_noseg/metaJetson/
 
 # Kept: small deployment artifacts actually loaded by dashboard/api/main.py
 # (outputs/ablation_noseg/meta/deployment/tensorrt/*_fp16.engine, meta_learner.pkl,
-#  outputs/detection/checkpoints/best_fp16.engine) — none of the patterns above
+#  outputs/detection/checkpoints/best_fp16.engine) - none of the patterns above
 # match these paths/extensions, so they stay tracked.
