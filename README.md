@@ -131,13 +131,13 @@ Thin wrapper around `yolo detect train`. Runs `prepare_detection_lists.py` first
 ### 4. Evaluate
 
 ```bash
-python scripts/no_seg/evaluate_noseg_models.py                 # cross-dataset accuracy, single models
+python scripts/no_seg/sens/evaluate_sens_models.py                 # cross-dataset accuracy, single models
 python scripts/no_seg/nonSens/evaluate_ensemble_3models.py      # ensembles of base checkpoints
 python scripts/no_seg/sens/evaluate_3models_majority_sens.py    # ensembles of sensitivity checkpoints
 ```
 
 `scripts/no_seg/nonSens/` and `scripts/no_seg/sens/` both follow majority-vote vs.
-mean-probability, 2-model vs. 3-model  pick the file matching what you want to check.
+mean-probability, 2-model vs. 3-model  pick the file matching what you want to check and meta Learn testing as well. These are before and after find tuning.
 
 ### 5. Fit and pick the meta-learner
 
@@ -163,7 +163,7 @@ disk here  that happens in step 6.
 python scripts/no_seg/sens/export_for_deployment.py
 
 # ONNX for any other checkpoint, or the detector
-python scripts/no_seg/convert_to_onnx.py --models resnet50 --datasets ham10000 --aug none_sens
+python scripts/no_seg/convert_to_onnx.py --models resnet50 --datasets ham10000
 python scripts/no_seg/convert_to_onnx.py --detection --skip-classifiers
 ```
 
