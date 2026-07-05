@@ -86,7 +86,7 @@ work unchanged on any machine once `melanoma_data` points at a local copy of the
 
 Detection labels (`outputs/detection/train.txt`/`val.txt`) are consumed directly by Ultralytics
 rather than our own loaders, so they need `scripts/prepare_detection_lists.py` run once per
-machine to resolve them to absolute paths — this happens automatically as part of
+machine to resolve them to absolute paths this happens automatically as part of
 `train_detection.py` (step 3 below).
 
 If you ever regenerate splits with absolute paths baked in, run
