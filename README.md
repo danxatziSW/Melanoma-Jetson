@@ -97,7 +97,7 @@ If you ever regenerate splits with absolute paths baked in, run
 Everything below assumes `data_splits/*.csv` already exist (see Data). Training scripts don't
 take CLI flags for picking models/datasets beyond what's shown; where a script needs specific
 checkpoints (a model pair, a triplet), that's a constant near the top of the file (`MODEL1`,
-`DATASET1`, ...), not an argument — edit it before running.
+`DATASET1`, ...), not an argument. Edit it before running.
 
 ### 1. Train classifiers (ablation)
 
@@ -137,7 +137,7 @@ python scripts/no_seg/sens/evaluate_3models_majority_sens.py    # ensembles of s
 ```
 
 `scripts/no_seg/nonSens/` and `scripts/no_seg/sens/` both follow majority-vote vs.
-mean-probability, 2-model vs. 3-model — pick the file matching what you want to check.
+mean-probability, 2-model vs. 3-model  pick the file matching what you want to check.
 
 ### 5. Fit and pick the meta-learner
 
@@ -154,7 +154,7 @@ python scripts/no_seg/sens/evaluate_deployment_pair.py  # validate that specific
 ```
 
 These two scripts fit a meta-learner in memory just to score each candidate; nothing is saved to
-disk here — that happens in step 6.
+disk here  that happens in step 6.
 
 ### 6. Convert to ONNX / TensorRT
 
