@@ -102,10 +102,10 @@ latency benchmark script skips the quality gate since it isn't measuring rejecti
 
 | File | Purpose | Trained on |
 |---|---|---|
-| `outputs/detection/checkpoints/best_fp16.engine` | YOLOv8n lesion detector | ISIC 2018 Task 1 |
-| `outputs/ablation_noseg/meta/deployment/tensorrt/resnet50_none_sens_fp16.engine` | ResNet-50 classifier | HAM10000 |
-| `outputs/ablation_noseg/meta/deployment/tensorrt/medfusionnet_none_sens_fp16.engine` | MedFusionNet classifier | HAM10000 |
-| `outputs/ablation_noseg/meta/deployment/meta_learner.pkl` | Sklearn meta-learner | HAM10000 (val split) |
+| `outputs/detection/checkpoints/best_fp16.engine` | YOLOv8n lesion detector | HAM10000 Segmentation |
+| `outputs/ablation_noseg/meta/deployment/tensorrt/resnet50_none_sens_fp16.engine` | ResNet-50 classifier | ISIC2019 |
+| `outputs/ablation_noseg/meta/deployment/tensorrt/medfusionnet_none_sens_fp16.engine` | MedFusionNet classifier | ISIC2020 |
+| `outputs/ablation_noseg/meta/deployment/meta_learner.pkl` | Sklearn meta-learner | 
 
 ---
 
@@ -126,6 +126,8 @@ sudo apt-get install python3-libnvinfer python3-libnvinfer-dev
 
 **Engine fails to deserialize / version mismatch**
 The pre-built engines require the same JetPack version used to compile them. See [Rebuilding the engines](#rebuilding-the-engines).
+In case rebuilding is needed, models are available at https://ihuedu-my.sharepoint.com/:f:/g/personal/iee2021233_ihu_gr/IgDpItKuXnNyRJrXnqsvkjkJAeCMcCzO9QOeByRVVrQZWrU?e=yz4ly0. 
+
 
 **Low FPS / thermal throttling**
 ```bash

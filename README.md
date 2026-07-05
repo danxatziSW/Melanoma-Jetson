@@ -86,7 +86,7 @@ work unchanged on any machine once `melanoma_data` points at a local copy of the
 
 Detection labels (`outputs/detection/train.txt`/`val.txt`) are consumed directly by Ultralytics
 rather than our own loaders, so they need `scripts/prepare_detection_lists.py` run once per
-machine to resolve them to absolute paths — this happens automatically as part of
+machine to resolve them to absolute paths this happens automatically as part of
 `train_detection.py` (step 3 below).
 
 If you ever regenerate splits with absolute paths baked in, run
@@ -97,7 +97,7 @@ If you ever regenerate splits with absolute paths baked in, run
 Everything below assumes `data_splits/*.csv` already exist (see Data). Training scripts don't
 take CLI flags for picking models/datasets beyond what's shown; where a script needs specific
 checkpoints (a model pair, a triplet), that's a constant near the top of the file (`MODEL1`,
-`DATASET1`, ...), not an argument — edit it before running.
+`DATASET1`, ...), not an argument. Edit it before running.
 
 ### 1. Train classifiers (ablation)
 
@@ -131,13 +131,13 @@ Thin wrapper around `yolo detect train`. Runs `prepare_detection_lists.py` first
 ### 4. Evaluate
 
 ```bash
-python scripts/no_seg/evaluate_noseg_models.py                 # cross-dataset accuracy, single models
+python scripts/no_seg/sens/evaluate_sens_models.py                 # cross-dataset accuracy, single models
 python scripts/no_seg/nonSens/evaluate_ensemble_3models.py      # ensembles of base checkpoints
 python scripts/no_seg/sens/evaluate_3models_majority_sens.py    # ensembles of sensitivity checkpoints
 ```
 
 `scripts/no_seg/nonSens/` and `scripts/no_seg/sens/` both follow majority-vote vs.
-mean-probability, 2-model vs. 3-model — pick the file matching what you want to check.
+mean-probability, 2-model vs. 3-model  pick the file matching what you want to check and meta Learn testing as well. These are before and after find tuning.
 
 ### 5. Fit and pick the meta-learner
 
@@ -154,7 +154,7 @@ python scripts/no_seg/sens/evaluate_deployment_pair.py  # validate that specific
 ```
 
 These two scripts fit a meta-learner in memory just to score each candidate; nothing is saved to
-disk here — that happens in step 6.
+disk here  that happens in step 6.
 
 ### 6. Convert to ONNX / TensorRT
 
@@ -163,7 +163,7 @@ disk here — that happens in step 6.
 python scripts/no_seg/sens/export_for_deployment.py
 
 # ONNX for any other checkpoint, or the detector
-python scripts/no_seg/convert_to_onnx.py --models resnet50 --datasets ham10000 --aug none_sens
+python scripts/no_seg/convert_to_onnx.py --models resnet50 --datasets ham10000
 python scripts/no_seg/convert_to_onnx.py --detection --skip-classifiers
 ```
 
