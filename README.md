@@ -58,6 +58,13 @@ pip uninstall torch torchvision
 pip install torch torchvision --index-url https://download.pytorch.org/whl/<tag>
 ```
 
+### Training hardware
+
+All experiments (Phase 1 base training and Phase 2 sensitivity fine-tuning) were run on an
+NVIDIA RTX 5070 (12 GB). Phase 2 uses automatic mixed precision, so a GPU with less memory
+should still fit the default batch sizes in `configs/`; Phase 1 batch sizes may need lowering
+on smaller GPUs.
+
 Optional extras depending on what you run:
 ```bash
 pip install ultralytics                       # YOLOv8 detector/classifier
