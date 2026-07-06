@@ -132,12 +132,13 @@ Thin wrapper around `yolo detect train`. Runs `prepare_detection_lists.py` first
 
 ```bash
 python scripts/no_seg/sens/evaluate_sens_models.py                 # cross-dataset accuracy, single models
-python scripts/no_seg/nonSens/evaluate_ensemble_3models.py      # ensembles of base checkpoints
-python scripts/no_seg/sens/evaluate_3models_majority_sens.py    # ensembles of sensitivity checkpoints
+python scripts/no_seg/sens/evaluate_2models_mean_sens.py           # 2 models mean threshold
+python scripts/no_seg/sens/evaluate_3models_mean_sens.py           # ensembles of base checkpoints
+python scripts/no_seg/sens/evaluate_3models_majority_sens.py       # ensembles of sensitivity checkpoints
 ```
 
 `scripts/no_seg/nonSens/` and `scripts/no_seg/sens/` both follow majority-vote vs.
-mean-probability, 2-model vs. 3-model  pick the file matching what you want to check and meta Learn testing as well. These are before and after find tuning.
+mean-probability, 2-model vs. 3-model  pick the file matching what you want to check. These are before and after fine tuning (sens).
 
 ### 5. Fit and pick the meta-learner
 
