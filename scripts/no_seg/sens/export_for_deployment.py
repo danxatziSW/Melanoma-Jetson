@@ -117,17 +117,21 @@ def _run_inference(model, loader, device, with_meta):
     return np.array(all_probs), np.array(all_labels)
 
 
+def _f2_at_thr(probs: np.ndarray, labels: np.ndarray, thr: float) -> float:
+    preds = (probs >= thr).astype(int)
+    tp = int(((preds == 1) & (labels == 1)).sum())
+    fn = int(((preds == 0) & (labels == 1)).sum())
+    fp = int(((preds == 1) & (labels == 0)).sum())
+    sens = tp / max(tp + fn, 1)
+    prec = tp / max(tp + fp, 1)
+    b2 = BETA ** 2
+    return (1 + b2) * prec * sens / max(b2 * prec + sens, 1e-9)
+
+
 def _best_thr(probs, labels):
     best_thr, best = THR_RANGE[0], -1.0
     for thr in THR_RANGE:
-        preds = (probs >= thr).astype(int)
-        tp = int(((preds == 1) & (labels == 1)).sum())
-        fn = int(((preds == 0) & (labels == 1)).sum())
-        fp = int(((preds == 1) & (labels == 0)).sum())
-        sens = tp / max(tp + fn, 1)
-        prec = tp / max(tp + fp, 1)
-        b2 = BETA ** 2
-        f2 = (1 + b2) * prec * sens / max(b2 * prec + sens, 1e-9)
+        f2 = _f2_at_thr(probs, labels, thr)
         if f2 > best:
             best, best_thr = f2, thr
     return float(best_thr)
@@ -242,8 +246,9 @@ def main() -> None:
     print(f"    weights : [{clf.coef_[0][0]:.4f}, {clf.coef_[0][1]:.4f}]")
     print(f"    bias    : {clf.intercept_[0]:.4f}")
 
-    thresholds: dict[str, float] = {}
-    print("\n  Computing per-dataset thresholds (F2-optimal on val):")
+    ds_meta_probs: dict[str, np.ndarray] = {}
+    ds_labels: dict[str, np.ndarray] = {}
+    print("\n  Computing per-dataset meta-probs (val):")
     for ds in ALL_DATASETS:
         if ds not in val_dfs:
             continue
@@ -254,19 +259,22 @@ def main() -> None:
         X_val_s   = scaler.transform(np.column_stack([p1, p2]))
         meta_prob = clf.predict_proba(X_val_s)[:, 1]
         labels    = val_dfs[ds]["binary_label"].values
-        thr       = _best_thr(meta_prob, labels)
-        thresholds[ds] = thr
-        print(f"    {ds:<12} threshold = {thr}")
+        ds_meta_probs[ds] = meta_prob
+        ds_labels[ds]     = labels
 
-    # global threshold (conservative — maximise sensitivity across all datasets)
-    all_val_p1 = np.concatenate([val_probs[k1][ds] for ds in ALL_DATASETS if ds in val_probs[k1]])
-    all_val_p2 = np.concatenate([val_probs[k2][ds] for ds in ALL_DATASETS if ds in val_probs[k2]])
-    all_labels = np.concatenate([val_dfs[ds]["binary_label"].values for ds in ALL_DATASETS if ds in val_dfs])
-    X_all_s    = scaler.transform(np.column_stack([all_val_p1, all_val_p2]))
-    all_meta_p = clf.predict_proba(X_all_s)[:, 1]
-    global_thr = _best_thr(all_meta_p, all_labels)
-    thresholds["global"] = global_thr
-    print(f"    {'global':<12} threshold = {global_thr}  (use this when dataset is unknown)")
+    # global threshold — worst-case F2 across datasets: for each candidate
+    # threshold, take the minimum per-dataset F2, then pick the threshold
+    # that maximises that minimum (a pooled optimum is skewed toward
+    # whichever dataset dominates the concatenated validation set)
+    print("  Computing global threshold (worst-case F2 across datasets):")
+    global_thr, best_worst_f2 = THR_RANGE[0], -1.0
+    for thr in THR_RANGE:
+        worst_f2 = min(_f2_at_thr(ds_meta_probs[ds], ds_labels[ds], thr) for ds in ds_meta_probs)
+        if worst_f2 > best_worst_f2:
+            best_worst_f2, global_thr = worst_f2, thr
+    global_thr = float(global_thr)
+    thresholds: dict[str, float] = {"global": global_thr}
+    print(f"    {'global':<12} threshold = {global_thr}  (worst-case F2 = {best_worst_f2:.4f})")
 
     meta_path = out_dir / "meta_learner.pkl"
     with open(meta_path, "wb") as f:

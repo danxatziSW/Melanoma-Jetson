@@ -1,11 +1,6 @@
 """Trains the YOLOv8 lesion detector, then flattens the checkpoint to where everything
 downstream expects it.
 
-There's no Ultralytics Python training API used here beyond what `yolo detect train` already
-does; this is a thin wrapper around that CLI command, kept as a script so training the
-detector looks like every other training step in this repo (`python scripts/...`) instead of
-a multi-line command you have to type and then fix up by hand afterwards.
-
 Usage: python scripts/no_seg/train_detection.py [--epochs 40] [--imgsz 640] [--batch 16] [--seed 0]
 """
 from __future__ import annotations
@@ -40,7 +35,15 @@ def main() -> None:
     parser.add_argument("--batch",  type=int, default=16)
     parser.add_argument("--seed",   type=int, default=0)
     parser.add_argument("--model",  default=_BASE_MODEL, help="Base checkpoint to fine-tune from")
+    parser.add_argument("--device", default=None,
+                        help="0 / cpu (default: the first CUDA device when one is visible). "
+                             "Worth setting explicitly: Ultralytics silently falls back to CPU "
+                             "when torch has no CUDA build, which turns a one-hour run into a day.")
     args = parser.parse_args()
+
+    if args.device is None:
+        import torch
+        args.device = "0" if torch.cuda.is_available() else "cpu"
 
     base_cfg     = load_config()
     det_dir      = Path(base_cfg.paths.outputs) / "detection"
@@ -51,7 +54,7 @@ def main() -> None:
     prepare_detection_lists()
 
     print(f"\n  Training {args.model} -> {_RUN_NAME}  "
-          f"({args.epochs} epochs, imgsz={args.imgsz}, batch={args.batch})\n")
+          f"({args.epochs} epochs, imgsz={args.imgsz}, batch={args.batch}, device={args.device})\n")
 
     cmd = [
         _yolo_executable(), "detect", "train",
@@ -61,6 +64,7 @@ def main() -> None:
         f"imgsz={args.imgsz}",
         f"batch={args.batch}",
         f"seed={args.seed}",
+        f"device={args.device}",
         f"project={ckpt_dir}",
         f"name={_RUN_NAME}",
         "exist_ok=True",  # reuse checkpoints/yolov8n_lesion/ on rerun instead of

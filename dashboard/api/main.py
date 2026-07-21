@@ -26,7 +26,7 @@ _DET_ENGINE  = _PROJECT_ROOT / "outputs" / "detection" / "checkpoints" / "best_f
 _MEAN  = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _STD   = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 _NEUTRAL_META = np.array([0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32)
-_QUALITY_THRESHOLD = 80.0
+_QUALITY_THRESHOLD = 11.8
 
 
 def _preprocess_chw(img_bgr: np.ndarray, size: int = 224) -> np.ndarray:
@@ -431,7 +431,7 @@ def get_models() -> Dict[str, Any]:
         "tflite":          [],
         "gpu_ensemble":    [{"key": "resnet50|fp16"}, {"key": "medfusionnet|fp16"}] if ready else [],
         "tflite_ensemble": [],
-        "mean_threshold":  _pipeline.thresholds.get("global", 0.85) if ready else 0.85,
+        "mean_threshold":  _pipeline.thresholds.get("global", 0.20) if ready else 0.20,
     }
 
 
@@ -536,7 +536,7 @@ def infer_frame(payload: Dict[str, Any]) -> Dict[str, Any]:
             "error": f"Classify error: {exc}",
         }
 
-    thr        = _pipeline.thresholds.get("global", 0.85)
+    thr        = _pipeline.thresholds.get("global", 0.20)
     label      = "MALIGNANT" if meta_prob >= thr else "BENIGN"
     mal_prob   = meta_prob
     ben_prob   = 1.0 - meta_prob
